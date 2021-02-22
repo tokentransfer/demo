@@ -1,0 +1,35 @@
+syntax = "proto3";
+package pb;
+
+option go_package = ".;pb";
+
+service NodeService {
+    rpc SendRequest(RequestInfo) returns(ReplyInfo) {}
+    rpc SendMessage(Message) returns(Reply) {}
+}
+
+message Message {
+    uint64 Id           = 1;
+    bytes Data          = 2;
+    uint64 NodeIndex    = 3;
+    int64 Timestamp     = 4;
+}
+
+message Reply {
+    uint64 Id       = 1;
+    int32 Status    = 2;
+    int64 Timestamp = 3;
+}
+
+message RequestInfo {
+    uint64 Id       = 1;
+    string Address  = 2;
+    int64 Timestamp = 3;
+}
+
+message ReplyInfo {
+    uint64 Id           = 1;
+    bytes PublicKey     = 2;
+    string Address      = 3;
+    int64 Timestamp     = 4;
+}

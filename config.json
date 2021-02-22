@@ -1,0 +1,16 @@
+{
+    "address":"localhost",
+    "port":7001,
+    "rpc_address":"localhost",
+    "rpc_port":7545,
+    "gas_address":"0xc287B1266732495Fe8c93CE3Ba631597153fdd91",
+    "data_dir":"./data",
+    "secret":"abb33a8c2bb48d3b1c2ce365685ac3b96563e6a17ebc4367cd637e33149f94ea",
+    "bootstraps":[
+        "localhost:7000",
+        "localhost:7001",
+        "localhost:7002",
+        "localhost:7003",
+        "localhost:7004"
+    ]
+}
