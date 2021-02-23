@@ -5,11 +5,10 @@ import (
 	"log"
 	"testing"
 
-	"github.com/skywell/skywell-go/util"
+	"github.com/tokentransfer/demo/core"
+	"github.com/tokentransfer/demo/util"
 
-	"github.com/tokentransfer/chain/account"
 	"github.com/tokentransfer/chain/block"
-	"github.com/tokentransfer/chain/core"
 
 	. "gopkg.in/check.v1"
 )
@@ -25,14 +24,10 @@ func Test_Node(t *testing.T) {
 func (suite *NodeSuite) TestProcess(c *C) {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
-	key := account.NewKey()
-	err := key.UnmarshalText([]byte("beec9ec61c17b04cb9e4a9b7017e749f92835e2743e95f94cde218d667b14109"))
+	config, err := core.NewConfig("./config.json")
 	c.Assert(err, IsNil)
 
-	config, err := core.NewConfig("localhost", 7001)
-	c.Assert(err, IsNil)
-
-	n := NewNode(key)
+	n := NewNode()
 	err = n.Init(config)
 	c.Assert(err, IsNil)
 
