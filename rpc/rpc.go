@@ -15,16 +15,10 @@ import (
 type RPCService struct {
 	config *core.Config
 	node   *node.Node
-
-	rpcAddress string
-	rpcPort    int64
 }
 
 func NewRPCService(n *node.Node) *RPCService {
 	rpc := &RPCService{
-		rpcAddress: "localhost",
-		rpcPort:    7545,
-
 		node: n,
 	}
 	return rpc

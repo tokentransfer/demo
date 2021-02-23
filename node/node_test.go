@@ -10,7 +10,7 @@ import (
 
 	"github.com/tokentransfer/chain/block"
 
-	. "gopkg.in/check.v1"
+	. "github.com/tokentransfer/check"
 )
 
 type NodeSuite struct{}
@@ -18,7 +18,6 @@ type NodeSuite struct{}
 func Test_Node(t *testing.T) {
 	s := Suite(&NodeSuite{})
 	TestingRun(t, s)
-	// TestingT(t)
 }
 
 func (suite *NodeSuite) TestProcess(c *C) {
