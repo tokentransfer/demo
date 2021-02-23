@@ -3,13 +3,13 @@ package rpc
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 
-	"github.com/skywell/skywell-go/util"
 	"github.com/tokentransfer/demo/core"
 	"github.com/tokentransfer/demo/node"
+	"github.com/tokentransfer/demo/util"
 	libcore "github.com/tokentransfer/interfaces/core"
-	"upspin.io/log"
 )
 
 type RPCService struct {
