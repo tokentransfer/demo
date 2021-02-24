@@ -26,6 +26,7 @@ import (
 	libaccount "github.com/tokentransfer/interfaces/account"
 	libblock "github.com/tokentransfer/interfaces/block"
 	libcore "github.com/tokentransfer/interfaces/core"
+	libcrypto "github.com/tokentransfer/interfaces/crypto"
 )
 
 type Status int
@@ -244,7 +245,7 @@ func (n *Node) processTransaction(tx *block.Transaction) (libblock.TransactionWi
 	n.transactionLocker.Lock()
 	defer n.transactionLocker.Unlock()
 
-	h, _, err := n.cryptoService.Raw(tx)
+	h, _, err := n.cryptoService.Raw(tx, libcrypto.RawBinary)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -301,15 +302,15 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		state, err := n.merkleService.GetReceiptByTransactionHash(libcore.Hash(h))
+		receipt, err := n.merkleService.GetReceiptByTransactionHash(libcore.Hash(h))
 		if err != nil {
 			return nil, err
 		}
-		_, _, err = n.cryptoService.Raw(state)
+		_, err = n.HashReceipt(receipt)
 		if err != nil {
 			return nil, err
 		}
-		return state, nil
+		return receipt, nil
 	case "getTransactionByHash":
 		hashString := params[0].(string)
 		h, err := hex.DecodeString(hashString)
@@ -842,7 +843,7 @@ func (n *Node) ListPeer() []*Peer {
 }
 
 func (n *Node) HashBlock(b libblock.Block) (libcore.Hash, error) {
-	h, _, err := n.cryptoService.Raw(b)
+	h, _, err := n.cryptoService.Raw(b, libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
@@ -866,17 +867,17 @@ func (n *Node) HashBlock(b libblock.Block) (libcore.Hash, error) {
 }
 
 func (n *Node) HashTransaction(txWithData libblock.TransactionWithData) (libcore.Hash, error) {
-	_, _, err := n.cryptoService.Raw(txWithData)
+	_, _, err := n.cryptoService.Raw(txWithData, libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
 
-	h, _, err := n.cryptoService.Raw(txWithData.GetTransaction())
+	h, _, err := n.cryptoService.Raw(txWithData.GetTransaction(), libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
 
-	_, _, err = n.cryptoService.Raw(txWithData.GetReceipt())
+	_, _, err = n.cryptoService.Raw(txWithData.GetReceipt(), libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
@@ -884,7 +885,7 @@ func (n *Node) HashTransaction(txWithData libblock.TransactionWithData) (libcore
 	states := txWithData.GetReceipt().GetStates()
 	for i := 0; i < len(states); i++ {
 		state := states[i]
-		_, _, err := n.cryptoService.Raw(state)
+		_, _, err := n.cryptoService.Raw(state, libcrypto.RawBinary)
 		if err != nil {
 			return nil, err
 		}
@@ -893,7 +894,7 @@ func (n *Node) HashTransaction(txWithData libblock.TransactionWithData) (libcore
 }
 
 func (n *Node) HashReceipt(r libblock.Receipt) (libcore.Hash, error) {
-	h, _, err := n.cryptoService.Raw(r)
+	h, _, err := n.cryptoService.Raw(r, libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
@@ -901,7 +902,7 @@ func (n *Node) HashReceipt(r libblock.Receipt) (libcore.Hash, error) {
 	states := r.GetStates()
 	for i := 0; i < len(states); i++ {
 		state := states[i]
-		_, _, err := n.cryptoService.Raw(state)
+		_, _, err := n.cryptoService.Raw(state, libcrypto.RawBinary)
 		if err != nil {
 			return nil, err
 		}

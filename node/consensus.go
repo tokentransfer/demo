@@ -51,6 +51,9 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 				TransactionResult: libblock.TransactionResult(0),
 				States: []libblock.State{
 					&block.CurrencyState{
+						State: block.State{
+							BlockIndex: uint64(0),
+						},
 						Account:     rootAccount,
 						Sequence:    uint64(0),
 						Name:        "TEST Coin",
@@ -59,6 +62,9 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 						TotalSupply: int64(100000000000000),
 					},
 					&block.AccountState{
+						State: block.State{
+							BlockIndex: uint64(0),
+						},
 						Account:  rootAccount,
 						Sequence: uint64(0),
 						Amount:   int64(100000000000000),
@@ -107,7 +113,17 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 		}
 
 		for i := 0; i < len(list); i++ {
-			err := ms.PutTransaction(list[i])
+			txWithData := list[i]
+
+			r := txWithData.GetReceipt()
+			r.SetTransactionIndex(uint32(i))
+			states := r.GetStates()
+			for j := 0; j < len(states); j++ {
+				s := states[j]
+				s.SetBlockIndex(v.GetIndex() + 1)
+			}
+
+			err := ms.PutTransaction(txWithData)
 			if err != nil {
 				return nil, err
 			}
@@ -132,7 +148,7 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 		}
 	}
 
-	_, _, err := cs.Raw(b)
+	_, _, err := cs.Raw(b, libcrypto.RawBinary)
 	if err != nil {
 		return nil, err
 	}
@@ -175,13 +191,13 @@ func (service *ConsensusService) VerifyBlock(b libblock.Block) (ok bool, err err
 			return
 		}
 
-		arh, _, e := cs.Raw(txWithData.GetReceipt())
+		arh, _, e := cs.Raw(txWithData.GetReceipt(), libcrypto.RawBinary)
 		if e != nil {
 			ok = false
 			err = e
 			return
 		}
-		brh, _, e := cs.Raw(newWithData.GetReceipt())
+		brh, _, e := cs.Raw(newWithData.GetReceipt(), libcrypto.RawBinary)
 		if e != nil {
 			ok = false
 			err = e
@@ -240,12 +256,12 @@ func (service *ConsensusService) VerifyBlock(b libblock.Block) (ok bool, err err
 	receiptHash := ms.GetReceiptRoot()
 	if !b.GetTransactionHash().Equals(transactionHash) {
 		ok = false
-		err = errors.New("error transaction hash")
+		err = fmt.Errorf("error transaction hash: %s != %s", b.GetTransactionHash().String(), transactionHash.String())
 		return
 	}
 	if !b.GetReceiptHash().Equals(receiptHash) {
 		ok = false
-		err = errors.New("error receipt hash")
+		err = fmt.Errorf("error receipt hash: %s != %s", b.GetReceiptHash().String(), receiptHash.String())
 		return
 	}
 	return

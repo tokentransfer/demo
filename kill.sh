@@ -1,1 +1,1 @@
-ps aux | grep demo | grep -v "grep" | awk '{print $2}' | xargs -r kill -9
+ps aux | grep demo | grep -v "grep" | awk '{print $2}' | xargs kill -9
