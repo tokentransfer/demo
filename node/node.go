@@ -302,10 +302,11 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		if err != nil {
 			return nil, err
 		}
-		receipt, err := n.merkleService.GetReceiptByTransactionHash(libcore.Hash(h))
+		txWithData, err := n.merkleService.GetTransactionByHash(libcore.Hash(h))
 		if err != nil {
 			return nil, err
 		}
+		receipt := txWithData.GetReceipt()
 		_, err = n.HashReceipt(receipt)
 		if err != nil {
 			return nil, err
@@ -558,6 +559,7 @@ func (n *Node) generate() {
 			if err != nil {
 				panic(err)
 			}
+
 			err = n.consensusService.AddBlock(block)
 			if err != nil {
 				panic(err)
@@ -855,10 +857,10 @@ func (n *Node) HashBlock(b libblock.Block) (libcore.Hash, error) {
 			return nil, err
 		}
 	}
-	receipts := b.GetReceipts()
-	for i := 0; i < len(receipts); i++ {
-		r := receipts[i]
-		_, err := n.HashReceipt(r)
+	states := b.GetStates()
+	for i := 0; i < len(states); i++ {
+		state := states[i]
+		_, err := n.HashState(state)
 		if err != nil {
 			return nil, err
 		}
@@ -882,13 +884,9 @@ func (n *Node) HashTransaction(txWithData libblock.TransactionWithData) (libcore
 		return nil, err
 	}
 
-	states := txWithData.GetReceipt().GetStates()
-	for i := 0; i < len(states); i++ {
-		state := states[i]
-		_, _, err := n.cryptoService.Raw(state, libcrypto.RawBinary)
-		if err != nil {
-			return nil, err
-		}
+	_, err = n.HashReceipt(txWithData.GetReceipt())
+	if err != nil {
+		return nil, err
 	}
 	return h, nil
 }
@@ -902,10 +900,18 @@ func (n *Node) HashReceipt(r libblock.Receipt) (libcore.Hash, error) {
 	states := r.GetStates()
 	for i := 0; i < len(states); i++ {
 		state := states[i]
-		_, _, err := n.cryptoService.Raw(state, libcrypto.RawBinary)
+		_, err := n.HashState(state)
 		if err != nil {
 			return nil, err
 		}
+	}
+	return h, nil
+}
+
+func (n *Node) HashState(s libblock.State) (libcore.Hash, error) {
+	h, _, err := n.cryptoService.Raw(s, libcrypto.RawBinary)
+	if err != nil {
+		return nil, err
 	}
 	return h, nil
 }

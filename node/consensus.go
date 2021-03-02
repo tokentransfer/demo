@@ -45,38 +45,32 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 		if err != nil {
 			return nil, err
 		}
-		receipts := []libblock.Receipt{
-			&block.Receipt{
-				TransactionIndex:  uint32(0),
-				TransactionResult: libblock.TransactionResult(0),
-				States: []libblock.State{
-					&block.CurrencyState{
-						State: block.State{
-							BlockIndex: uint64(0),
-						},
-						Account:     rootAccount,
-						Sequence:    uint64(0),
-						Name:        "TEST Coin",
-						Symbol:      "TEST",
-						Decimals:    6,
-						TotalSupply: int64(100000000000000),
-					},
-					&block.AccountState{
-						State: block.State{
-							BlockIndex: uint64(0),
-						},
-						Account:  rootAccount,
-						Sequence: uint64(0),
-						Amount:   int64(100000000000000),
-					},
+		states := []libblock.State{
+			&block.CurrencyState{
+				State: block.State{
+					BlockIndex: uint64(0),
 				},
+				Account:     rootAccount,
+				Sequence:    uint64(0),
+				Name:        "TEST Coin",
+				Symbol:      "TEST",
+				Decimals:    6,
+				TotalSupply: int64(100000000000000),
+			},
+			&block.AccountState{
+				State: block.State{
+					BlockIndex: uint64(0),
+				},
+				Account:  rootAccount,
+				Sequence: uint64(0),
+				Amount:   int64(100000000000000),
 			},
 		}
 
 		ms := service.MerkleService
-		for i := 0; i < len(receipts); i++ {
-			r := receipts[i]
-			err := ms.PutReceipt(r)
+		for i := 0; i < len(states); i++ {
+			state := states[i]
+			err := ms.PutState(state)
 			if err != nil {
 				return nil, err
 			}
@@ -89,8 +83,8 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 			Transactions:    []libblock.TransactionWithData{},
 			TransactionHash: ms.GetTransactionRoot(),
 
-			Receipts:    receipts,
-			ReceiptHash: ms.GetReceiptRoot(),
+			States:    states,
+			StateHash: ms.GetStateRoot(),
 
 			Timestamp: time.Now().UnixNano(),
 		}
@@ -103,15 +97,9 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 		ms := service.MerkleService
 		v := service.ValidatedBlock
 
-		receipts := make([]libblock.Receipt, 0)
 		fmt.Printf("=== package %d transactions in block %d\n", len(list), v.GetIndex()+1)
-		for i := 0; i < len(list); i++ {
-			tx := list[i]
-			receipts = append(receipts, tx.GetReceipt())
 
-			fmt.Printf("=== %d %s\n", i, tx.GetTransaction().GetHash().String())
-		}
-
+		stateMap := map[string]uint64{}
 		for i := 0; i < len(list); i++ {
 			txWithData := list[i]
 
@@ -121,9 +109,44 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 			for j := 0; j < len(states); j++ {
 				s := states[j]
 				s.SetBlockIndex(v.GetIndex() + 1)
+
+				key := fmt.Sprintf("%d-%s", s.GetStateType(), s.GetStateKey())
+				index := s.GetIndex()
+				stateMap[key] = index
 			}
 
 			err := ms.PutTransaction(txWithData)
+			if err != nil {
+				return nil, err
+			}
+
+			fmt.Printf("=== %d %s\n", i, txWithData.GetTransaction().GetHash().String())
+		}
+
+		states := make([]libblock.State, 0)
+		for i := 0; i < len(list); i++ {
+			txWithData := list[i]
+
+			r := txWithData.GetReceipt()
+			rs := r.GetStates()
+			for j := 0; j < len(rs); j++ {
+				s := rs[j]
+
+				key := fmt.Sprintf("%d-%s", s.GetStateType(), s.GetStateKey())
+				index, ok := stateMap[key]
+				if ok {
+					if index == s.GetIndex() {
+						states = append(states, s)
+					} else if s.GetIndex() > index {
+						return nil, errors.New("error state")
+					}
+				}
+			}
+		}
+
+		for i := 0; i < len(states); i++ {
+			state := states[i]
+			err := service.MerkleService.PutState(state)
 			if err != nil {
 				return nil, err
 			}
@@ -136,8 +159,8 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 			Transactions:    list,
 			TransactionHash: ms.GetTransactionRoot(),
 
-			Receipts:    receipts,
-			ReceiptHash: ms.GetReceiptRoot(),
+			States:    states,
+			StateHash: ms.GetStateRoot(),
 
 			Timestamp: time.Now().UnixNano(),
 		}
@@ -239,29 +262,28 @@ func (service *ConsensusService) VerifyBlock(b libblock.Block) (ok bool, err err
 			return
 		}
 	}
-	if b.GetIndex() == 0 { // genesis block
-		receipts := b.GetReceipts()
-		l := len(receipts)
-		for i := 0; i < l; i++ {
-			r := receipts[i]
-			err = ms.PutReceipt(r)
-			if err != nil {
-				ok = false
-				return
-			}
+
+	states := b.GetStates()
+	l = len(states)
+	for i := 0; i < l; i++ {
+		state := states[i]
+		err = ms.PutState(state)
+		if err != nil {
+			ok = false
+			return
 		}
 	}
 
 	transactionHash := ms.GetTransactionRoot()
-	receiptHash := ms.GetReceiptRoot()
+	stateHash := ms.GetStateRoot()
 	if !b.GetTransactionHash().Equals(transactionHash) {
 		ok = false
 		err = fmt.Errorf("error transaction hash: %s != %s", b.GetTransactionHash().String(), transactionHash.String())
 		return
 	}
-	if !b.GetReceiptHash().Equals(receiptHash) {
+	if !b.GetStateHash().Equals(stateHash) {
 		ok = false
-		err = fmt.Errorf("error receipt hash: %s != %s", b.GetReceiptHash().String(), receiptHash.String())
+		err = fmt.Errorf("error state hash: %s != %s", b.GetStateHash().String(), stateHash.String())
 		return
 	}
 	return
