@@ -53,7 +53,7 @@ func (s Status) String() string {
 }
 
 const (
-	BLOCK_DURATION = 5
+	BLOCK_DURATION = 10
 )
 
 type Peer struct {
