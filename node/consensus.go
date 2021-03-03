@@ -99,7 +99,7 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 
 		fmt.Printf("=== package %d transactions in block %d\n", len(list), v.GetIndex()+1)
 
-		stateMap := map[string]uint64{}
+		stateMap := map[string][]uint64{}
 		for i := 0; i < len(list); i++ {
 			txWithData := list[i]
 
@@ -112,7 +112,7 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 
 				key := fmt.Sprintf("%d-%s", s.GetStateType(), s.GetStateKey())
 				index := s.GetIndex()
-				stateMap[key] = index
+				stateMap[key] = []uint64{uint64(i), index}
 			}
 
 			err := ms.PutTransaction(txWithData)
@@ -133,13 +133,9 @@ func (service *ConsensusService) GenerateBlock(list []libblock.TransactionWithDa
 				s := rs[j]
 
 				key := fmt.Sprintf("%d-%s", s.GetStateType(), s.GetStateKey())
-				index, ok := stateMap[key]
-				if ok {
-					if index == s.GetIndex() {
-						states = append(states, s)
-					} else if s.GetIndex() > index {
-						return nil, errors.New("error state")
-					}
+				item, ok := stateMap[key]
+				if ok && item[0] == uint64(i) && item[1] == s.GetIndex() {
+					states = append(states, s)
 				}
 			}
 		}
