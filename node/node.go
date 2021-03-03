@@ -249,14 +249,14 @@ func (n *Node) processTransaction(tx *block.Transaction) (libblock.TransactionWi
 	if err != nil {
 		return nil, nil, err
 	}
-	ok, err := n.merkleService.VerifyTransaction(tx)
+	ok, err := n.consensusService.VerifyTransaction(tx)
 	if err != nil {
 		return nil, nil, err
 	}
 	if !ok {
 		return nil, nil, errors.New("error transaction")
 	}
-	txWithData, err := n.merkleService.ProcessTransaction(tx)
+	txWithData, err := n.consensusService.ProcessTransaction(tx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -273,7 +273,7 @@ func (n *Node) processTransaction(tx *block.Transaction) (libblock.TransactionWi
 }
 
 func (n *Node) getNextSequence(address string) uint64 {
-	accountEntry, err := n.merkleService.GetAccount(address)
+	accountEntry, err := n.consensusService.GetAccount(address)
 	if err != nil {
 		return uint64(1)
 	}
@@ -287,7 +287,7 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		return result, nil
 	case "getBalance":
 		address := params[0].(string)
-		accountEntry, err := n.merkleService.GetAccount(address)
+		accountEntry, err := n.consensusService.GetAccount(address)
 		if err != nil {
 			return nil, err
 		}
@@ -716,6 +716,7 @@ func (n *Node) load() {
 	consensusService := &ConsensusService{
 		CryptoService: cryptoService,
 		MerkleService: merkleService,
+		Config:        n.config,
 	}
 
 	n.cryptoService = cryptoService

@@ -7,8 +7,10 @@ import (
 
 	"github.com/tokentransfer/chain/account"
 	"github.com/tokentransfer/chain/block"
+	"github.com/tokentransfer/chain/core"
 
 	libblock "github.com/tokentransfer/interfaces/block"
+	libcore "github.com/tokentransfer/interfaces/core"
 	libcrypto "github.com/tokentransfer/interfaces/crypto"
 	libnode "github.com/tokentransfer/interfaces/node"
 )
@@ -16,6 +18,7 @@ import (
 type ConsensusService struct {
 	CryptoService libcrypto.CryptoService
 	MerkleService libnode.MerkleService
+	Config        libcore.Config
 
 	ValidatedBlock libblock.Block
 	CurrentBlock   libblock.Block
@@ -194,7 +197,7 @@ func (service *ConsensusService) VerifyBlock(b libblock.Block) (ok bool, err err
 		txWithData := transactions[i]
 		tx := txWithData.GetTransaction()
 
-		ok, err = ms.VerifyTransaction(tx)
+		ok, err = service.VerifyTransaction(tx)
 		if err != nil {
 			return
 		}
@@ -203,7 +206,7 @@ func (service *ConsensusService) VerifyBlock(b libblock.Block) (ok bool, err err
 			return
 		}
 
-		newWithData, e := ms.ProcessTransaction(tx)
+		newWithData, e := service.ProcessTransaction(tx)
 		if e != nil {
 			ok = false
 			err = e
@@ -299,4 +302,124 @@ func (service *ConsensusService) AddBlock(b libblock.Block) error {
 	service.ValidatedBlock = b
 
 	return nil
+}
+
+func (service *ConsensusService) GetAccount(address string) (*block.AccountState, error) {
+	ms := service.MerkleService
+
+	state, err := ms.GetStateByKey(address)
+	if err != nil {
+		return nil, err
+	}
+	info, ok := state.(*block.AccountState)
+	if !ok {
+		return nil, errors.New("error account state")
+	}
+	return info, nil
+}
+
+func (service *ConsensusService) VerifyTransaction(t libblock.Transaction) (bool, error) {
+	cs := service.CryptoService
+	ok, err := cs.Verify(t)
+	if err != nil {
+		return false, err
+	}
+	if !ok {
+		return false, errors.New("error transaction")
+	}
+	tx, ok := t.(*block.Transaction)
+	if !ok {
+		return false, errors.New("error transaction")
+	}
+
+	account := tx.Account
+	address, err := account.GetAddress()
+	if err != nil {
+		return false, err
+	}
+	info, _ := service.GetAccount(address)
+
+	sequence := uint64(1)
+	amount := int64(0)
+	if info != nil {
+		sequence = info.Sequence + 1
+		amount = info.Amount
+	}
+
+	if tx.Sequence != sequence {
+		return false, fmt.Errorf("error sequence: %d != %d", tx.Sequence, sequence)
+	}
+
+	if (amount - tx.Amount - int64(tx.Gas)) < 0 {
+		return false, errors.New("insuffient amount")
+	}
+
+	return true, nil
+}
+
+func (service *ConsensusService) addBalance(account libcore.Address, amount int64, isFromAccount bool, sequence uint64) (libblock.State, error) {
+	address, err := account.GetAddress()
+	if err != nil {
+		return nil, err
+	}
+	info, _ := service.GetAccount(address)
+	if info != nil {
+		s, err := block.CloneState(info)
+		if err != nil {
+			return nil, err
+		}
+		info = s.(*block.AccountState)
+		info.Amount = info.Amount + amount
+		info.Sequence = sequence
+	} else {
+		info = &block.AccountState{
+			State: block.State{
+				StateType: libblock.StateType(core.CORE_ACCOUNT_STATE),
+			},
+
+			Account:  account,
+			Sequence: uint64(0),
+			Amount:   amount,
+		}
+	}
+	return info, nil
+}
+
+func (service *ConsensusService) ProcessTransaction(t libblock.Transaction) (libblock.TransactionWithData, error) {
+	tx, ok := t.(*block.Transaction)
+	if !ok {
+		return nil, errors.New("error transaction")
+	}
+
+	gasAccount := service.Config.GetGasAccount()
+	e1, err := service.addBalance(gasAccount, int64(tx.Gas), false, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	account := tx.Account
+	e2, err := service.addBalance(account, -(tx.Amount + int64(tx.Gas)), true, t.GetIndex())
+	if err != nil {
+		return nil, err
+	}
+
+	destination := tx.Destination
+	e3, err := service.addBalance(destination, tx.Amount, false, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &block.Receipt{
+		TransactionResult: 0,
+		States: []libblock.State{
+			e1,
+			e2,
+			e3,
+		},
+	}
+
+	return &block.TransactionWithData{
+		Transaction: t,
+		Receipt:     r,
+	}, nil
 }
