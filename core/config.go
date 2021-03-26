@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/tokentransfer/chain/account"
+	"github.com/tokentransfer/chain/core"
 
 	libcore "github.com/tokentransfer/interfaces/core"
 )
@@ -44,13 +45,21 @@ func NewConfig(configFile string) (*Config, error) {
 		return nil, err
 	}
 
-	gasAccount := account.NewAddress()
-	err = gasAccount.UnmarshalText([]byte(config.GasAddress))
+	_, gasAccount, err := account.NewAccountFromAddress(config.GasAddress)
 	if err != nil {
 		return nil, err
 	}
 	config.gasAccount = gasAccount
+	core.Init(config)
 	return config, nil
+}
+
+func (c *Config) GetId() string {
+	return "test"
+}
+
+func (c *Config) GetType() int {
+	return 0
 }
 
 func (c *Config) GetGasAccount() libcore.Address {
@@ -77,10 +86,30 @@ func (c *Config) GetBootstraps() []string {
 	return c.Bootstraps
 }
 
+func (c *Config) GetThreadCount() uint32 {
+	return 8
+}
+
+func (c *Config) GetTimeout() int64 {
+	return 30
+}
+
 func (c *Config) GetRPCAddress() string {
 	return c.RPCAddress
 }
 
 func (c *Config) GetRPCPort() int64 {
 	return c.RPCPort
+}
+
+func (c *Config) GetSystemCode() string {
+	return "TEST"
+}
+
+func (c *Config) GetBlockDuration() uint32 {
+	return 10
+}
+
+func (c *Config) GetBackend() string {
+	return ""
 }
