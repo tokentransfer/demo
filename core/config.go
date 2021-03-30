@@ -10,6 +10,8 @@ import (
 	libcore "github.com/tokentransfer/interfaces/core"
 )
 
+var as = &account.AccountService{}
+
 type Config struct {
 	// address 0xc287B1266732495Fe8c93CE3Ba631597153fdd91
 	// secret 86d3350f255e5b6259d3d3a615b363f23c042971d89b7f9cb84aa7fadeeb2736
@@ -45,7 +47,7 @@ func NewConfig(configFile string) (*Config, error) {
 		return nil, err
 	}
 
-	_, gasAccount, err := account.NewAccountFromAddress(config.GasAddress)
+	_, gasAccount, err := as.NewAccountFromAddress(config.GasAddress)
 	if err != nil {
 		return nil, err
 	}

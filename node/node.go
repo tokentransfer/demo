@@ -94,7 +94,8 @@ type Node struct {
 
 	messageId uint64
 
-	cryptoService    *crypto.CryptoService
+	cryptoService    libcrypto.CryptoService
+	accountService   libaccount.AccountService
 	merkleService    libstore.MerkleService
 	consensusService *ConsensusService
 
@@ -133,13 +134,16 @@ func NewNode() *Node {
 		ready:   ready,
 
 		transactionLocker: &sync.Mutex{},
+
+		accountService: &account.AccountService{},
+		cryptoService:  &crypto.CryptoService{},
 	}
 }
 
 func (n *Node) Init(c libcore.Config) error {
 	n.config = c.(*core.Config)
 
-	_, key, err := account.NewKeyFromSecret(n.config.GetSecret())
+	_, key, err := n.accountService.NewKeyFromSecret(n.config.GetSecret())
 	if err != nil {
 		return err
 	}
@@ -182,12 +186,14 @@ func ToString(m *map[string]interface{}, key string) string {
 }
 
 func (n *Node) signTransaction(txm map[string]interface{}) (string, *block.Transaction, error) {
+	as := n.accountService
+
 	from := ToString(&txm, "from")
 	secret := ToString(&txm, "secret")
 	to := ToString(&txm, "to")
 	value := ToString(&txm, "value")
 
-	_, fromKey, err := account.NewKeyFromSecret(secret)
+	_, fromKey, err := as.NewKeyFromSecret(secret)
 	if err != nil {
 		return "", nil, err
 	}
@@ -199,7 +205,7 @@ func (n *Node) signTransaction(txm map[string]interface{}) (string, *block.Trans
 	if fromAddress != from {
 		return "", nil, fmt.Errorf("error account: %s != %s", fromAddress, from)
 	}
-	_, toAccount, err := account.NewAccountFromAddress(to)
+	_, toAccount, err := as.NewAccountFromAddress(to)
 	if err != nil {
 		return "", nil, err
 	}
@@ -281,13 +287,15 @@ func (n *Node) getNextSequence(address libcore.Address) uint64 {
 }
 
 func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
+	as := n.accountService
+
 	switch method {
 	case "blockNumber":
 		result := n.consensusService.GetBlockNumber()
 		return result, nil
 	case "getBalance":
 		address := params[0].(string)
-		_, a, err := account.NewAccountFromAddress(address)
+		_, a, err := as.NewAccountFromAddress(address)
 		if err != nil {
 			return nil, err
 		}
@@ -298,7 +306,7 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		return accountEntry.Amount, nil
 	case "getTransactionCount":
 		address := params[0].(string)
-		_, a, err := account.NewAccountFromAddress(address)
+		_, a, err := as.NewAccountFromAddress(address)
 		if err != nil {
 			return nil, err
 		}
@@ -337,7 +345,7 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		return txWithData, nil
 	case "getTransactionByIndex":
 		address := params[0].(string)
-		_, a, err := account.NewAccountFromAddress(address)
+		_, a, err := as.NewAccountFromAddress(address)
 		if err != nil {
 			return nil, err
 		}
@@ -626,6 +634,8 @@ func (n *Node) ConnectTo(p *Peer) {
 }
 
 func (n *Node) SendRequestInfo(p *Peer) {
+	as := n.accountService
+
 	fmt.Println("request to", p.Address)
 	reply, err := p.client.SendRequest(context.Background(), &pb.RequestInfo{
 		Address: n.self.Address,
@@ -636,7 +646,7 @@ func (n *Node) SendRequestInfo(p *Peer) {
 		fmt.Println("reply from", p.Address)
 
 		data := reply.GetPublicKey()
-		_, publicKey, err := account.NewPublicFromBytes(data)
+		_, publicKey, err := as.NewPublicFromBytes(data)
 		if err != nil {
 			log.Println(err)
 		} else {
@@ -707,18 +717,16 @@ func (n *Node) discovery() {
 }
 
 func (n *Node) load() {
-	cryptoService := &crypto.CryptoService{}
-	merkleService, err := node.NewMerkleService(n.config, cryptoService)
+	merkleService, err := node.NewMerkleService(n.config, n.cryptoService)
 	if err != nil {
 		panic(err)
 	}
 	consensusService := &ConsensusService{
-		CryptoService: cryptoService,
-		MerkleService: merkleService,
-		Config:        n.config,
+		CryptoService:  n.cryptoService,
+		MerkleService:  merkleService,
+		Config:         n.config,
+		AccountService: n.accountService,
 	}
-
-	n.cryptoService = cryptoService
 	n.merkleService = merkleService
 	n.consensusService = consensusService
 }
