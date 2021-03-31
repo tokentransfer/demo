@@ -235,19 +235,42 @@ func (n *Node) signTransaction(txm map[string]interface{}) (string, *block.Trans
 	return blob, tx, nil
 }
 
-func (n *Node) sendTransaction(txm map[string]interface{}) (libblock.TransactionWithData, libblock.Transaction, error) {
-	_, tx, err := n.signTransaction(txm)
+func (n *Node) verifyTransaction(tx libblock.Transaction) error {
+	_, _, err := n.cryptoService.Raw(tx, libcrypto.RawBinary)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	txWithData, _, err := n.processTransaction(tx)
+	_, err = n.consensusService.VerifyTransaction(tx)
 	if err != nil {
-		return nil, nil, err
+		return err
 	}
-	return txWithData, tx, nil
+	return nil
 }
 
-func (n *Node) processTransaction(tx *block.Transaction) (libblock.TransactionWithData, libblock.Transaction, error) {
+func (n *Node) sendTransaction(tx libblock.Transaction) (libblock.TransactionWithData, error) {
+	err := n.verifyTransaction(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	hash := tx.GetHash()
+	fmt.Println("verify transaction", hash.String())
+
+	txWithData, _, err := n.processTransaction(tx)
+	if err != nil {
+		fmt.Println("error", err) // ignore the error after verified transaction
+	} else {
+		data, err := tx.MarshalBinary()
+		if err != nil {
+			return nil, err
+		}
+		n.broadcast(data)
+		fmt.Println("send transaction", hash.String())
+	}
+	return txWithData, nil
+}
+
+func (n *Node) processTransaction(tx libblock.Transaction) (libblock.TransactionWithData, libblock.Transaction, error) {
 	n.transactionLocker.Lock()
 	defer n.transactionLocker.Unlock()
 
@@ -405,20 +428,14 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 		list := make([]string, l)
 		for i := 0; i < l; i++ {
 			item := params[i].(map[string]interface{})
-			_, tx, err := n.sendTransaction(item)
+			_, tx, err := n.signTransaction(item)
 			if err != nil {
 				return nil, err
 			}
-
-			data, err := tx.MarshalBinary()
-			if err != nil {
-				return nil, err
-			}
-			n.broadcast(data)
+			_, _ = n.sendTransaction(tx)
 
 			hash := tx.GetHash()
 			list[i] = hash.String()
-			fmt.Println("send transaction", hash.String())
 		}
 		return list, nil
 	case "sendRawTransaction":
@@ -436,15 +453,10 @@ func (n *Node) Call(method string, params []interface{}) (interface{}, error) {
 			if err != nil {
 				return nil, err
 			}
-			_, _, err = n.processTransaction(tx)
-			if err != nil {
-				return nil, err
-			}
-			n.broadcast(data)
+			_, _ = n.sendTransaction(tx)
 
 			hash := tx.GetHash()
 			list[i] = hash.String()
-			fmt.Println("send raw transaction", hash.String())
 		}
 		return list, nil
 	default:
