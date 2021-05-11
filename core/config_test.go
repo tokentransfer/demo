@@ -3,7 +3,7 @@ package core
 import (
 	"testing"
 
-	. "gopkg.in/check.v1"
+	. "github.com/tokentransfer/check"
 )
 
 type ConfigSuite struct{}
@@ -11,7 +11,6 @@ type ConfigSuite struct{}
 func Test_Config(t *testing.T) {
 	s := Suite(&ConfigSuite{})
 	TestingRun(t, s)
-	// TestingT(t)
 }
 
 func (suite *ConfigSuite) TestConfig(c *C) {

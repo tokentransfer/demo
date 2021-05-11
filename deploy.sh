@@ -1,5 +1,5 @@
-cp demo ~/temp/node0/
-cp demo ~/temp/node1/
-cp demo ~/temp/node2/
-cp demo ~/temp/node3/
-cp demo ~/temp/node4/
+cp demo ~/temp/demo/node0/
+cp demo ~/temp/demo/node1/
+cp demo ~/temp/demo/node2/
+cp demo ~/temp/demo/node3/
+cp demo ~/temp/demo/node4/
